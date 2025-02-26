@@ -3,17 +3,17 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 async function scrapeData(url: string) {
   const response = await axios.get(url);
   const $ = cheerio.load(response.data);
   return $('body').text();
 }
 
-async function sendToOpenAI(data: string) {
+async function sendToOpenAI(data: string, apiKey: string) {
+  const openai = new OpenAI({
+    apiKey: apiKey,
+  });
+
   const prompt = `
   This data is from an API doc website. We want to convert this data in this format:
   {
@@ -46,24 +46,18 @@ async function sendToOpenAI(data: string) {
               "organic_results": {
                   "type": "array"
               }
-          },
-          "required": [
-              "organic_results"
-          ]
-      },
-      "on_failure": "Log Error: Google Search Failed"
+          }
+      }
   }
-  `;
-  const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
-    messages: [
-      { role: 'user', content: prompt + data },
-    ],
+
+  Analyze this data and convert it to that format: ${data}`;
+
+  const completion = await openai.chat.completions.create({
+    messages: [{ role: "user", content: prompt }],
+    model: "gpt-3.5-turbo",
   });
 
-  console.log(response.choices[0].message.content);
-
-  return response.choices[0].message.content;
+  return completion.choices[0].message.content;
 }
 
 export default async function handler(
@@ -74,29 +68,40 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Missing or invalid API key' });
+  }
+  const apiKey = authHeader.split(' ')[1];
+
+  const { urls } = req.body;
+  if (!urls || !Array.isArray(urls)) {
+    return res.status(400).json({ error: 'Invalid request body' });
+  }
+
   try {
-    const { urls } = req.body;
-
-    if (!Array.isArray(urls) || urls.length === 0) {
-      return res.status(400).json({ error: 'Please provide a valid array of URLs' });
-    }
-
     const results = await Promise.all(
-      urls.map(async (url) => {
+      urls.map(async (url: string) => {
         try {
-          const data = await scrapeData(url);
-          const result = await sendToOpenAI(data);
-          return { url, result, status: 'success' };
+          const scrapedData = await scrapeData(url);
+          const result = await sendToOpenAI(scrapedData, apiKey);
+          return {
+            url,
+            status: 'success',
+            result,
+          };
         } catch (error) {
-          console.error(`Error processing URL ${url}:`, error);
-          return { url, error: 'Failed to process URL', status: 'error' };
+          return {
+            url,
+            status: 'error',
+            error: error instanceof Error ? error.message : 'An error occurred',
+          };
         }
       })
     );
 
-    return res.status(200).json({ results });
+    res.status(200).json({ results });
   } catch (error) {
-    console.error('Error in process-urls API:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An error occurred' });
   }
 }

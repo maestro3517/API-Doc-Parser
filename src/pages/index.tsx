@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Head from "next/head";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -11,19 +11,51 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Shield, Info } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function Home() {
   const [urls, setUrls] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    // Load API key from localStorage on component mount
+    const savedApiKey = localStorage.getItem("openai-api-key");
+    if (savedApiKey) {
+      setApiKey(savedApiKey);
+    }
+  }, []);
+
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newKey = e.target.value;
+    setApiKey(newKey);
+    localStorage.setItem("openai-api-key", newKey);
+  };
+
+  const handleClearApiKey = () => {
+    setApiKey("");
+    localStorage.removeItem("openai-api-key");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    if (!apiKey) {
+      setError("Please enter your OpenAI API key");
+      setLoading(false);
+      return;
+    }
 
     try {
       // Split URLs by newline and commas, then flatten, trim, remove quotes and filter out empty lines
@@ -42,6 +74,7 @@ export default function Home() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({ urls: urlList }),
       });
@@ -98,13 +131,56 @@ export default function Home() {
                   URL Processor
                 </CardTitle>
                 <CardDescription className="text-lg mt-2">
-                  Enter URLs separated by newlines or commas to process and
-                  extract information
+                  Enter your OpenAI API key and URLs to process and extract information
                 </CardDescription>
+                <Alert className="mt-4 bg-muted/50">
+                  <Shield className="h-4 w-4" />
+                  <AlertDescription className="ml-2">
+                    Your API key is only stored in your browser&apos;s localStorage and is never sent to our servers. We only use it to make direct calls to OpenAI.
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="ml-1 inline-flex items-center">
+                          <Info className="h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-xs">Your API key is only temporarily stored in your browser&apos;s localStorage for convenience. It&apos;s only used to make direct API calls to OpenAI and is never transmitted to or stored on our servers.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </AlertDescription>
+                </Alert>
               </motion.div>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
+                <motion.div
+                  className="space-y-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1 }}
+                >
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={handleApiKeyChange}
+                      placeholder="Enter your OpenAI API key"
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {apiKey && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClearApiKey}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </motion.div>
+
                 <motion.div
                   className="space-y-2"
                   initial={{ opacity: 0 }}
