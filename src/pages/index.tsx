@@ -168,50 +168,10 @@ export default function Home() {
                             {result.url}
                           </h3>
                           {result.status === "success" ? (
-                            <div className="space-y-4">
-                              {(() => {
-                                const data = JSON.parse(result.result);
-                                return (
-                                  <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div className="bg-muted/50 p-4 rounded-lg">
-                                        <span className="font-medium text-primary">Step Name:</span>
-                                        <p className="mt-1">{data.step_name}</p>
-                                      </div>
-                                      <div className="bg-muted/50 p-4 rounded-lg">
-                                        <span className="font-medium text-primary">Action:</span>
-                                        <p className="mt-1">{data.action}</p>
-                                      </div>
-                                    </div>
-
-                                    <div className="bg-muted/50 p-4 rounded-lg">
-                                      <span className="font-medium text-primary">Inputs:</span>
-                                      <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto">
-                                        {JSON.stringify(data.inputs, null, 2)}
-                                      </pre>
-                                    </div>
-
-                                    <div className="bg-muted/50 p-4 rounded-lg">
-                                      <span className="font-medium text-primary">API Config:</span>
-                                      <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto">
-                                        {JSON.stringify(data.api_config, null, 2)}
-                                      </pre>
-                                    </div>
-
-                                    <div className="bg-muted/50 p-4 rounded-lg">
-                                      <span className="font-medium text-primary">Response Schema:</span>
-                                      <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto">
-                                        {JSON.stringify(data.response_schema, null, 2)}
-                                      </pre>
-                                    </div>
-
-                                    <div className="bg-muted/50 p-4 rounded-lg">
-                                      <span className="font-medium text-primary">On Failure:</span>
-                                      <p className="mt-1">{data.on_failure}</p>
-                                    </div>
-                                  </>
-                                );
-                              })()}
+                            <div className="bg-muted/50 p-4 rounded-lg">
+                              <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto whitespace-pre-wrap">
+                                {result.result}
+                              </pre>
                             </div>
                           ) : (
                             <p className="text-destructive">{result.error}</p>
