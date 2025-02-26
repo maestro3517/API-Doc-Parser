@@ -135,12 +135,12 @@ export default function Home() {
                 </CardDescription>
                 <Alert className="mt-4 bg-muted/50">
                   <Shield className="h-4 w-4" />
-                  <AlertDescription className="ml-2">
+                  <AlertDescription className="ml-2 flex items-center gap-1">
                     Your API key is only stored in your browser&apos;s localStorage and is never sent to our servers. We only use it to make direct calls to OpenAI.
                     <TooltipProvider>
                       <Tooltip>
-                        <TooltipTrigger className="ml-1 inline-flex items-center">
-                          <Info className="h-4 w-4" />
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="max-w-xs">Your API key is only temporarily stored in your browser&apos;s localStorage for convenience. It&apos;s only used to make direct API calls to OpenAI and is never transmitted to or stored on our servers.</p>
@@ -159,13 +159,13 @@ export default function Home() {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.1 }}
                 >
-                  <div className="relative">
+                  <div className="relative flex items-center">
                     <input
                       type="password"
                       value={apiKey}
                       onChange={handleApiKeyChange}
                       placeholder="Enter your OpenAI API key"
-                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary pr-20 text-foreground"
                     />
                     {apiKey && (
                       <Button
@@ -173,7 +173,7 @@ export default function Home() {
                         variant="ghost"
                         size="sm"
                         onClick={handleClearApiKey}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary"
+                        className="absolute right-2 text-muted-foreground hover:text-primary"
                       >
                         Clear
                       </Button>
