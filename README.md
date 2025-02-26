@@ -1,43 +1,54 @@
-# Codev Template
+# 🚀 URL Processor
 
-This is a Codev template project that includes:
+A powerful, privacy-focused web application for processing multiple URLs using AI technology. Built with Next.js, TypeScript, and Tailwind CSS.
 
-1. Next.js with Pages Router
-2. Tailwind CSS Framework
-3. Context for global state management
+## ✨ Key Features
 
-## Features
+- 🔒 **Privacy-First**: Your OpenAI API key is stored only in your browser's localStorage
+- ⚡ **Efficient Processing**: Handle multiple URLs simultaneously
+- 🎨 **Modern UI**: Beautiful, responsive interface with smooth animations
+- 🌙 **Accessibility**: Built with modern web standards and best practices
+- 🛠️ **Developer Friendly**: Built with TypeScript for better development experience
 
-- **Next.js Pages Router**: Utilizes the traditional routing system of Next.js for easy navigation and page management.
-- **Tailwind CSS**: A utility-first CSS framework that provides low-level utility classes to build custom designs quickly and efficiently.
-- **Context API**: Implements React's Context API for efficient global state management.
+## 🔧 Tech Stack
 
-## Getting Started
+- **Frontend**: Next.js with TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: Customized shadcn/ui components
+- **Animations**: Framer Motion
+- **Icons**: Lucide Icons
 
-1. Clone this repository
+## 🚀 Getting Started
+
+1. Clone the repository
 2. Install dependencies:
-   ```
-   npm install
+   ```bash
+   pnpm install
    ```
 3. Run the development server:
+   ```bash
+   pnpm dev
    ```
-   npm run dev
-   ```
-4. Open [http://localhost:3000](http://localhost:3000) in your browser to see the result.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-## Project Structure
+## 🔑 API Key Security
 
-- `pages/`: Contains all the pages of the application
-- `components/`: Reusable React components
-- `contexts/`: Global state management using Context API
-- `hooks/`: Custom React hooks
-- `styles/`: Global style (global.css)
-- `utils/`: Utility functions and helpers
+This application prioritizes user privacy and security:
+- API keys are stored only in the client's browser localStorage
+- Keys are never transmitted to our servers
+- Direct communication between client and OpenAI API
 
-## Learn More
+## 🤝 Contributing
 
-To learn more about the technologies used in this template, check out the following resources:
+Contributions are welcome! Feel free to:
+- Open issues for bugs or enhancements
+- Submit pull requests
+- Improve documentation
 
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
-- [React Context API](https://reactjs.org/docs/context.html)
+## 📄 License
+
+This project is open source and available under the MIT License.
+
+---
+
+Built with ❤️ using modern web technologies
