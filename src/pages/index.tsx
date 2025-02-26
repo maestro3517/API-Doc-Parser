@@ -26,10 +26,10 @@ export default function Home() {
     setLoading(true);
 
     try {
-      // Split URLs by newline and filter out empty lines
+      // Split URLs by newline and commas, then flatten, trim, remove quotes and filter out empty lines
       const urlList = urls
-        .split("\n")
-        .map((url) => url.trim())
+        .split(/[\n,]/) // Split by newline or comma
+        .map((url) => url.trim().replace(/['"]/g, "")) // Remove both single and double quotes
         .filter((url) => url);
 
       if (urlList.length === 0) {
@@ -64,7 +64,7 @@ export default function Home() {
     initial: { opacity: 0, y: 20 },
     animate: { opacity: 1, y: 0 },
     exit: { opacity: 0, y: -20 },
-    transition: { duration: 0.5 }
+    transition: { duration: 0.5 },
   };
 
   return (
@@ -80,7 +80,7 @@ export default function Home() {
       </Head>
       <div className="bg-gradient-to-b from-background to-secondary/20 min-h-screen flex flex-col">
         <Header />
-        <motion.main 
+        <motion.main
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
@@ -98,13 +98,14 @@ export default function Home() {
                   URL Processor
                 </CardTitle>
                 <CardDescription className="text-lg mt-2">
-                  Enter URLs (one per line) to process and extract information
+                  Enter URLs separated by newlines or commas to process and
+                  extract information
                 </CardDescription>
               </motion.div>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
-                <motion.div 
+                <motion.div
                   className="space-y-2"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -113,7 +114,7 @@ export default function Home() {
                   <Textarea
                     value={urls}
                     onChange={(e) => setUrls(e.target.value)}
-                    placeholder="https://example.com&#10;"
+                    placeholder="Enter URLs separated by newlines or commas (quotes will be automatically removed):&#10;https://example1.com&#10;'https://example2.com',\https://example3.com\"
                     className="min-h-[200px] transition-all duration-200 focus:shadow-lg"
                   />
                 </motion.div>
@@ -122,7 +123,11 @@ export default function Home() {
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
                 >
-                  <Button type="submit" disabled={loading} className="w-full text-lg py-6">
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full text-lg py-6"
+                  >
                     {loading ? (
                       <>
                         <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -137,10 +142,7 @@ export default function Home() {
 
               <AnimatePresence>
                 {error && (
-                  <motion.div
-                    {...fadeInUp}
-                    className="mt-6"
-                  >
+                  <motion.div {...fadeInUp} className="mt-6">
                     <Alert variant="destructive">
                       <AlertDescription>{error}</AlertDescription>
                     </Alert>
@@ -148,10 +150,7 @@ export default function Home() {
                 )}
 
                 {results.length > 0 && (
-                  <motion.div
-                    {...fadeInUp}
-                    className="mt-8 space-y-4"
-                  >
+                  <motion.div {...fadeInUp} className="mt-8 space-y-4">
                     <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
                       <Sparkles className="w-5 h-5 text-primary" />
                       Results
