@@ -11,7 +11,8 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Home() {
   const [urls, setUrls] = useState("");
@@ -59,6 +60,13 @@ export default function Home() {
     }
   };
 
+  const fadeInUp = {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -20 },
+    transition: { duration: 0.5 }
+  };
+
   return (
     <>
       <Head>
@@ -70,109 +78,153 @@ export default function Home() {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/my_website_logo_MK.png" />
       </Head>
-      <div className="bg-background min-h-screen flex flex-col">
+      <div className="bg-gradient-to-b from-background to-secondary/20 min-h-screen flex flex-col">
         <Header />
-        <main className="flex-1 container mx-auto py-8 px-4 max-w-4xl">
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle>URL Processor</CardTitle>
-              <CardDescription>
-                Enter URLs (one per line) to process and extract information
-              </CardDescription>
+        <motion.main 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="flex-1 container mx-auto py-12 px-4 max-w-4xl"
+        >
+          <Card className="w-full backdrop-blur-sm bg-background/95 shadow-lg border-primary/10">
+            <CardHeader className="space-y-4">
+              <motion.div
+                initial={{ scale: 0.95 }}
+                animate={{ scale: 1 }}
+                transition={{ duration: 0.3 }}
+              >
+                <CardTitle className="text-3xl font-bold flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-primary" />
+                  URL Processor
+                </CardTitle>
+                <CardDescription className="text-lg mt-2">
+                  Enter URLs (one per line) to process and extract information
+                </CardDescription>
+              </motion.div>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <motion.div 
+                  className="space-y-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                >
                   <Textarea
                     value={urls}
                     onChange={(e) => setUrls(e.target.value)}
                     placeholder="https://example.com&#10;"
-                    className="min-h-[200px]"
+                    className="min-h-[200px] transition-all duration-200 focus:shadow-lg"
                   />
-                </div>
+                </motion.div>
 
-                <Button type="submit" disabled={loading} className="w-full">
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    "Process URLs"
-                  )}
-                </Button>
+                <motion.div
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                >
+                  <Button type="submit" disabled={loading} className="w-full text-lg py-6">
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      "Process URLs"
+                    )}
+                  </Button>
+                </motion.div>
               </form>
 
-              {error && (
-                <Alert variant="destructive" className="mt-4">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+              <AnimatePresence>
+                {error && (
+                  <motion.div
+                    {...fadeInUp}
+                    className="mt-6"
+                  >
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  </motion.div>
+                )}
 
-              {results.length > 0 && (
-                <div className="mt-8 space-y-4">
-                  <h2 className="text-2xl font-bold mb-4">Results</h2>
-                  {results.map((result, index) => (
-                    <Card key={index} className="p-4">
-                      <h3 className="font-semibold mb-2 break-all">
-                        {result.url}
-                      </h3>
-                      {result.status === "success" ? (
-                        <div className="space-y-4">
-                          {(() => {
-                            const data = JSON.parse(result.result);
-                            return (
-                              <>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <span className="font-medium">Step Name:</span>
-                                    <p className="mt-1">{data.step_name}</p>
-                                  </div>
-                                  <div>
-                                    <span className="font-medium">Action:</span>
-                                    <p className="mt-1">{data.action}</p>
-                                  </div>
-                                </div>
+                {results.length > 0 && (
+                  <motion.div
+                    {...fadeInUp}
+                    className="mt-8 space-y-4"
+                  >
+                    <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-primary" />
+                      Results
+                    </h2>
+                    {results.map((result, index) => (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1 }}
+                      >
+                        <Card className="p-4 hover:shadow-lg transition-shadow duration-200">
+                          <h3 className="font-semibold mb-2 break-all">
+                            {result.url}
+                          </h3>
+                          {result.status === "success" ? (
+                            <div className="space-y-4">
+                              {(() => {
+                                const data = JSON.parse(result.result);
+                                return (
+                                  <>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="bg-muted/50 p-4 rounded-lg">
+                                        <span className="font-medium text-primary">Step Name:</span>
+                                        <p className="mt-1">{data.step_name}</p>
+                                      </div>
+                                      <div className="bg-muted/50 p-4 rounded-lg">
+                                        <span className="font-medium text-primary">Action:</span>
+                                        <p className="mt-1">{data.action}</p>
+                                      </div>
+                                    </div>
 
-                                <div>
-                                  <span className="font-medium">Inputs:</span>
-                                  <pre className="mt-1 p-2 bg-muted rounded-md overflow-x-auto">
-                                    {JSON.stringify(data.inputs, null, 2)}
-                                  </pre>
-                                </div>
+                                    <div className="bg-muted/50 p-4 rounded-lg">
+                                      <span className="font-medium text-primary">Inputs:</span>
+                                      <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto">
+                                        {JSON.stringify(data.inputs, null, 2)}
+                                      </pre>
+                                    </div>
 
-                                <div>
-                                  <span className="font-medium">API Config:</span>
-                                  <pre className="mt-1 p-2 bg-muted rounded-md overflow-x-auto">
-                                    {JSON.stringify(data.api_config, null, 2)}
-                                  </pre>
-                                </div>
+                                    <div className="bg-muted/50 p-4 rounded-lg">
+                                      <span className="font-medium text-primary">API Config:</span>
+                                      <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto">
+                                        {JSON.stringify(data.api_config, null, 2)}
+                                      </pre>
+                                    </div>
 
-                                <div>
-                                  <span className="font-medium">Response Schema:</span>
-                                  <pre className="mt-1 p-2 bg-muted rounded-md overflow-x-auto">
-                                    {JSON.stringify(data.response_schema, null, 2)}
-                                  </pre>
-                                </div>
+                                    <div className="bg-muted/50 p-4 rounded-lg">
+                                      <span className="font-medium text-primary">Response Schema:</span>
+                                      <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto">
+                                        {JSON.stringify(data.response_schema, null, 2)}
+                                      </pre>
+                                    </div>
 
-                                <div>
-                                  <span className="font-medium">On Failure:</span>
-                                  <p className="mt-1">{data.on_failure}</p>
-                                </div>
-                              </>
-                            );
-                          })()}
-                        </div>
-                      ) : (
-                        <p className="text-destructive">{result.error}</p>
-                      )}
-                    </Card>
-                  ))}
-                </div>
-              )}
+                                    <div className="bg-muted/50 p-4 rounded-lg">
+                                      <span className="font-medium text-primary">On Failure:</span>
+                                      <p className="mt-1">{data.on_failure}</p>
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          ) : (
+                            <p className="text-destructive">{result.error}</p>
+                          )}
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </CardContent>
           </Card>
-        </main>
+        </motion.main>
       </div>
     </>
   );
