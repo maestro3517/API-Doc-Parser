@@ -11,7 +11,7 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Sparkles, Shield, Info } from "lucide-react";
+import { Loader2, Sparkles, Shield, Info, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Tooltip,
@@ -19,6 +19,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
 
 export default function Home() {
   const [urls, setUrls] = useState("");
@@ -243,10 +250,94 @@ export default function Home() {
                             {result.url}
                           </h3>
                           {result.status === "success" ? (
-                            <div className="bg-muted/50 p-4 rounded-lg">
-                              <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto whitespace-pre-wrap">
-                                {result.result}
-                              </pre>
+                            <div className="space-y-4">
+                              <div className="bg-muted/50 p-4 rounded-lg">
+                                {result.parsedData ? (
+                                  <div className="space-y-3">
+                                    <h4 className="font-medium text-lg">{result.parsedData.step_name}</h4>
+                                    
+                                    {/* Display entire parsedData in a single div */}
+                                    <div className="bg-background p-3 rounded">
+                                      <pre className="font-mono text-xs overflow-x-auto whitespace-pre-wrap">
+                                        {JSON.stringify(result.parsedData, null, 2)}
+                                      </pre>
+                                    </div>
+                                    
+                                    <Accordion type="single" collapsible className="w-full">
+                                      <AccordionItem value="raw-json">
+                                        <AccordionTrigger className="text-sm text-muted-foreground">
+                                          Show Raw JSON
+                                        </AccordionTrigger>
+                                        <AccordionContent>
+                                          <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto whitespace-pre-wrap text-xs">
+                                            {result.result}
+                                          </pre>
+                                        </AccordionContent>
+                                      </AccordionItem>
+                                    </Accordion>
+                                  </div>
+                                ) : (
+                                  <pre className="mt-2 p-3 bg-background rounded-md overflow-x-auto whitespace-pre-wrap">
+                                    {result.result}
+                                  </pre>
+                                )}
+                              </div>
+                              
+                              {/* Display prerequisite workflows if available */}
+                              {result.prerequisiteWorkflows && result.prerequisiteWorkflows.length > 0 && (
+                                <div className="mt-4">
+                                  <Accordion type="single" collapsible className="w-full">
+                                    <AccordionItem value="prerequisites">
+                                      <AccordionTrigger className="py-2">
+                                        <div className="flex items-center gap-2">
+                                          <span>Prerequisite Workflows</span>
+                                          <Badge variant="outline">{result.prerequisiteWorkflows.length}</Badge>
+                                        </div>
+                                      </AccordionTrigger>
+                                      <AccordionContent>
+                                        <div className="pl-4 space-y-4 mt-2">
+                                          {result.prerequisiteWorkflows.map((prereq: any, pIndex: number) => (
+                                            <Card key={pIndex} className="p-3 border border-border/30">
+                                              <h4 className="font-medium text-sm mb-2 break-all">
+                                                {prereq.url}
+                                              </h4>
+                                              {prereq.status === "success" ? (
+                                                <div className="bg-muted/30 p-3 rounded-md">
+                                                  {prereq.parsedData ? (
+                                                    <div className="text-xs">
+                                                      <pre className="font-mono bg-background p-2 rounded overflow-x-auto whitespace-pre-wrap">
+                                                        {JSON.stringify(prereq.parsedData, null, 2)}
+                                                      </pre>
+                                                      <Accordion type="single" collapsible className="w-full mt-1">
+                                                        <AccordionItem value="prereq-raw">
+                                                          <AccordionTrigger className="text-xs py-1">
+                                                            Show Raw Data
+                                                          </AccordionTrigger>
+                                                          <AccordionContent>
+                                                            <pre className="text-xs mt-1 p-2 bg-background rounded overflow-x-auto whitespace-pre-wrap">
+                                                              {prereq.result}
+                                                            </pre>
+                                                          </AccordionContent>
+                                                        </AccordionItem>
+                                                      </Accordion>
+                                                    </div>
+                                                  ) : (
+                                                    <pre className="text-xs mt-1 p-2 bg-background rounded overflow-x-auto whitespace-pre-wrap">
+                                                      {prereq.result}
+                                                    </pre>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <p className="text-destructive text-sm">{prereq.error}</p>
+                                              )}
+                                            </Card>
+                                          ))}
+                                        </div>
+                                      </AccordionContent>
+                                    </AccordionItem>
+                                  </Accordion>
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <p className="text-destructive">{result.error}</p>
