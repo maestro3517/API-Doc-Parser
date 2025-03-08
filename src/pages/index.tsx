@@ -36,7 +36,7 @@ export default function Home() {
 
   useEffect(() => {
     // Load API key from localStorage on component mount
-    const savedApiKey = localStorage.getItem("openai-api-key");
+    const savedApiKey = localStorage.getItem("gemini-api-key");
     if (savedApiKey) {
       setApiKey(savedApiKey);
     }
@@ -45,12 +45,12 @@ export default function Home() {
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newKey = e.target.value;
     setApiKey(newKey);
-    localStorage.setItem("openai-api-key", newKey);
+    localStorage.setItem("gemini-api-key", newKey);
   };
 
   const handleClearApiKey = () => {
     setApiKey("");
-    localStorage.removeItem("openai-api-key");
+    localStorage.removeItem("gemini-api-key");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,7 +59,7 @@ export default function Home() {
     setLoading(true);
 
     if (!apiKey) {
-      setError("Please enter your OpenAI API key");
+      setError("Please enter your Gemini API key");
       setLoading(false);
       return;
     }
@@ -138,19 +138,19 @@ export default function Home() {
                   URL Processor
                 </CardTitle>
                 <CardDescription className="text-lg mt-2">
-                  Enter your OpenAI API key and URLs to process and extract information
+                  Enter your Gemini API key and URLs to process and extract information
                 </CardDescription>
                 <Alert className="mt-4 bg-muted/50">
                   <Shield className="h-4 w-4" />
                   <AlertDescription className="ml-2 flex items-center gap-1">
-                    Your API key is only stored in your browser&apos;s localStorage and is never sent to our servers. We only use it to make direct calls to OpenAI.
+                    Your API key is only stored in your browser&apos;s localStorage and is never sent to our servers. We only use it to make direct calls to Gemini.
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Info className="h-4 w-4 cursor-help" />
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p className="max-w-xs">Your API key is only temporarily stored in your browser&apos;s localStorage for convenience. It&apos;s only used to make direct API calls to OpenAI and is never transmitted to or stored on our servers.</p>
+                          <p className="max-w-xs">Your API key is only temporarily stored in your browser&apos;s localStorage for convenience. It&apos;s only used to make direct API calls to Gemini and is never transmitted to or stored on our servers.</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -171,7 +171,7 @@ export default function Home() {
                       type="password"
                       value={apiKey}
                       onChange={handleApiKeyChange}
-                      placeholder="Enter your OpenAI API key"
+                      placeholder="Enter your Gemini API key"
                       className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-primary pr-20 text-foreground"
                     />
                     {apiKey && (
