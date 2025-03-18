@@ -3,17 +3,18 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { v4 as uuidv4 } from 'uuid';
 
 // Common prompt for all models
-export const getPrompt = (data: string) => {
+export const getPrompt = (data: string, multipleApis: boolean = false) => {
   // Generate a unique ID for this action
   const actionId = `action_${uuidv4()}`;
   
   return `
-IMPORTANT INSTRUCTION: Your response must be ONLY a raw JSON object without any markdown formatting or code block syntax.
+IMPORTANT INSTRUCTION: ${multipleApis ? 'This page may contain MULTIPLE API endpoints. You must identify each distinct API endpoint and return an ARRAY of JSON objects, one for each endpoint. Each endpoint should have its own complete JSON object.' : 'Your response must be ONLY a raw JSON object without any markdown formatting or code block syntax.'}
 
 This data is from an API doc website. Analyze the documentation data and convert it to the following JSON format:
 
+${multipleApis ? '[' : ''}
 {
-    "id": "${actionId}",
+    "id": "${multipleApis ? 'action_[UNIQUE_ID]' : actionId}",
     "step_name": "REPLACE WITH ACTUAL API NAME",
     "action": "REPLACE WITH APPROPRIATE ACTION NAME",
     "inputs": {
@@ -47,7 +48,7 @@ This data is from an API doc website. Analyze the documentation data and convert
             // REPLACE WITH ACTUAL RESPONSE PROPERTIES
         }
     }
-}
+}${multipleApis ? ',\n// Add more API objects as needed\n]' : ''}
 
 IMPORTANT INSTRUCTIONS:
 1. DO NOT return the template as-is. You MUST replace all placeholder values with actual data from the documentation.
@@ -55,8 +56,11 @@ IMPORTANT INSTRUCTIONS:
 3. The "action" should be a snake_case verb_noun combination that describes the action.
 4. For prerequisites, include only user-facing requirements with the field name as the key and the requirement as the value.
 5. Do not put API authentication details, rate limits, or configuration details in prerequisites.
-6. Keep the "id" field exactly as provided in the template. This is a unique identifier for this action.
+6. ${multipleApis ? 'For each API endpoint, generate a unique ID using the format "action_[uuid]". Each endpoint must have a different ID.' : ''}
 7. Do not wrap your response in \`\`\`json or any other markdown formatting. Return the raw JSON only.
+${multipleApis ? '8. If you identify multiple distinct API endpoints, return an array of JSON objects. If there is only one API endpoint, still return it within an array.\n9. Make sure each API endpoint is complete and has all required fields filled in.' : ''}
+
+${multipleApis ? 'IMPORTANT: Each API endpoint should be represented as a separate, complete JSON object in the array. Do not combine multiple endpoints into a single object.' : ''}
 
 Documentation data: ${data}`;
 };
@@ -116,13 +120,14 @@ If no action is sufficiently related to the prerequisite, return {"actionId": nu
 
 export async function sendToOpenAI(
   data: string,
-  apiKey: string
+  apiKey: string,
+  detectMultipleApis: boolean = true
 ): Promise<string> {
   const openai = new OpenAI({
     apiKey: apiKey,
   });
 
-  const prompt = getPrompt(data);
+  const prompt = getPrompt(data, detectMultipleApis);
 
   const completion = await openai.chat.completions.create({
     messages: [{ role: "user", content: prompt }],
@@ -134,12 +139,13 @@ export async function sendToOpenAI(
 
 export async function sendToGemini(
   data: string,
-  apiKey: string
+  apiKey: string,
+  detectMultipleApis: boolean = true
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-  const prompt = getPrompt(data);
+  const prompt = getPrompt(data, detectMultipleApis);
 
   const parsedData = await model.generateContent(prompt);
   const response = await parsedData.response;
@@ -198,7 +204,8 @@ export async function findRelevantActionWithAI(
   prerequisiteText: string,
   actions: ProcessedApiData[],
   currentActionId: string,
-  apiKey?: string
+  apiKey?: string,
+  model?: string
 ): Promise<ProcessedApiData | null> {
   // Skip if no API key is provided
   if (!apiKey) {
@@ -210,45 +217,56 @@ export async function findRelevantActionWithAI(
     // Skip the current action itself
     const otherActions = actions.filter(a => a.id !== currentActionId);
     if (otherActions.length === 0) return null;
-    
-    // Use Gemini for faster processing
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    
-    const prompt = getRelevantActionPrompt(prerequisiteText, otherActions);
-    
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const responseText = response.text() || "{}";
-    
+
+    let responseText;
+    // Use the specified model for processing
+    if (model === 'openai') {
+      const openAI = new OpenAI({ apiKey });
+      const prompt = getRelevantActionPrompt(prerequisiteText, otherActions);
+      const result = await openAI.chat.completions.create({
+        messages: [{ role: "user", content: prompt }],
+        model: "gpt-4o", // Specify the OpenAI model
+      });
+      // Access the content directly from the result
+      responseText = result.choices[0].message.content || "{}";
+    } else if (model === 'gemini') {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const geminiModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const prompt = getRelevantActionPrompt(prerequisiteText, otherActions);
+      const result = await geminiModel.generateContent(prompt);
+      // Access the content directly from the result
+      responseText = result.response.text() || "{}";
+    } else {
+      console.error("Invalid model specified");
+      return null;
+    }
+
     // Parse the AI response
     try {
       // Clean the response
       let cleanedText = responseText;
-      
+
       // Remove markdown code blocks if present
       if (cleanedText.includes('```')) {
-        const jsonMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        const jsonMatch = cleanedText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
         if (jsonMatch && jsonMatch[1]) {
           cleanedText = jsonMatch[1];
         }
       }
-      
+
       // Extract JSON object if embedded in other text
-      const jsonMatch = cleanedText.match(/\{(?:[^{}]*|\{(?:[^{}]*|\{[^{}]*\})*\})*\}/);
-      if (jsonMatch && jsonMatch[0]) {
-        cleanedText = jsonMatch[0];
+      const objectMatch = cleanedText.match(/(\{[\s\S]*\})/);
+      if (objectMatch && objectMatch[1]) {
+        cleanedText = objectMatch[1];
       }
-      
+
       // Clean up any extra whitespace
       cleanedText = cleanedText.trim();
-      
-      // Parse the JSON
+
       const result = JSON.parse(cleanedText);
-      
+
       // Check if we got a valid actionId
       if (result && result.actionId && result.actionId !== "null") {
-        // Find the action with the matching ID
         const matchedAction = otherActions.find(a => a.id === result.actionId);
         if (matchedAction) {
           console.log(`AI found matching action for prerequisite "${prerequisiteText.substring(0, 30)}...": ${matchedAction.step_name}`);
@@ -257,7 +275,7 @@ export async function findRelevantActionWithAI(
       } else {
         console.log(`AI found no matching action for prerequisite "${prerequisiteText.substring(0, 30)}..."`);
       }
-      
+
       return null;
     } catch (parseError) {
       console.error("Failed to parse AI action matching response:", parseError);
@@ -293,35 +311,31 @@ export interface ProcessedApiData {
 
 // Function to check if an action is a template/example response
 function isTemplateResponse(action: ProcessedApiData): boolean {
-  // Check for template placeholder values
-  const placeholderPatterns = [
-    /REPLACE WITH/i,
-    /ACTUAL API/i,
-    /APPROPRIATE ACTION/i
+  // Check if the response contains placeholder text that indicates it's a template
+  const placeholderTexts = [
+    "REPLACE WITH",
+    "ACTUAL API",
+    "REPLACE THIS",
+    "EXAMPLE",
+    "PLACEHOLDER"
   ];
   
   // Check step_name and action fields
-  if (placeholderPatterns.some(pattern => pattern.test(action.step_name)) || 
-      placeholderPatterns.some(pattern => pattern.test(action.action))) {
+  if (
+    placeholderTexts.some(text => 
+      action.step_name.includes(text) || 
+      action.action.includes(text)
+    )
+  ) {
     return true;
   }
   
-  // Check if it's the Google SERP example
-  if (action.step_name === "Search Google for Keyword" && 
-      action.action === "get_google_serp" &&
-      action.api_config.url === "https://serpapi.com/search") {
-    return true;
-  }
-  
-  // Check if inputs contain placeholder values
-  const inputsJson = JSON.stringify(action.inputs);
-  if (placeholderPatterns.some(pattern => pattern.test(inputsJson))) {
-    return true;
-  }
-  
-  // Check if API config contains placeholder values
-  const apiConfigJson = JSON.stringify(action.api_config);
-  if (placeholderPatterns.some(pattern => pattern.test(apiConfigJson))) {
+  // Check if the API config URL is a placeholder
+  if (
+    placeholderTexts.some(text => 
+      action.api_config.url.includes(text)
+    )
+  ) {
     return true;
   }
   
@@ -331,15 +345,15 @@ function isTemplateResponse(action: ProcessedApiData): boolean {
 // Function to validate and clean actions
 function validateAndCleanActions(actions: ProcessedApiData[]): ProcessedApiData[] {
   return actions.filter(action => {
-    // Filter out template responses
+    // Skip template responses
     if (isTemplateResponse(action)) {
-      console.warn(`Filtered out template response with ID: ${action.id}`);
+      console.warn(`Skipping template response: ${action.step_name}`);
       return false;
     }
     
-    // Ensure action has required fields
-    if (!action.step_name || !action.action || !action.api_config.url || !action.api_config.method) {
-      console.warn(`Filtered out incomplete action with ID: ${action.id}`);
+    // Ensure required fields are present
+    if (!action.id || !action.step_name || !action.action || !action.api_config || !action.api_config.url) {
+      console.warn(`Skipping invalid action missing required fields: ${JSON.stringify(action)}`);
       return false;
     }
     
@@ -350,7 +364,8 @@ function validateAndCleanActions(actions: ProcessedApiData[]): ProcessedApiData[
 // Function to link prerequisites between actions
 export async function linkActionPrerequisites(
   actions: ProcessedApiData[],
-  aiApiKey?: string
+  aiApiKey?: string,
+  model?: string
 ): Promise<ProcessedApiData[]> {
   if (!actions || actions.length <= 1) {
     return actions; // Nothing to link if there are 0 or 1 actions
@@ -393,7 +408,8 @@ export async function linkActionPrerequisites(
           prereqValue, 
           linkedActions, 
           action.id,
-          aiApiKey
+          aiApiKey,
+          model
         );
         
         if (relevantAction) {
@@ -418,7 +434,8 @@ async function findMostRelevantAction(
   prerequisiteText: string, 
   actions: ProcessedApiData[],
   currentActionId: string,
-  aiApiKey?: string
+  aiApiKey?: string,
+  model?: string
 ): Promise<ProcessedApiData | null> {
   // First try with AI if an API key is provided
   if (aiApiKey) {
@@ -427,7 +444,8 @@ async function findMostRelevantAction(
         prerequisiteText,
         actions,
         currentActionId,
-        aiApiKey
+        aiApiKey,
+        model
       );
       
       if (aiResult) {
@@ -560,77 +578,221 @@ function findMostRelevantActionHeuristic(
 }
 
 // Parse AI response to extract processed data
-export function parseAiResponse(responseText: string): ProcessedApiData {
+export function parseAiResponse(responseText: string): ProcessedApiData | ProcessedApiData[] {
   try {
     // First, clean the response from any markdown code blocks or other formatting
     let cleanedText = responseText;
     
     // Remove markdown code blocks if present
     if (cleanedText.includes('```')) {
-      const jsonMatch = cleanedText.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      const jsonMatch = cleanedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
       if (jsonMatch && jsonMatch[1]) {
         cleanedText = jsonMatch[1];
       }
     }
     
-    // Remove any leading/trailing non-JSON text
-    const objectMatch = cleanedText.match(/(\{[\s\S]*\})/);
-    if (objectMatch && objectMatch[1]) {
-      cleanedText = objectMatch[1];
-    }
+    // Check if the response is an array or a single object
+    const isArray = cleanedText.trim().startsWith('[') && cleanedText.trim().endsWith(']');
     
-    // Clean up any extra whitespace
-    cleanedText = cleanedText.trim();
-    
-    console.log("Cleaned JSON text:", cleanedText);
-    
-    // Parse the cleaned JSON
-    const parsedData = JSON.parse(cleanedText) as ProcessedApiData;
-    
-    // Validate the parsed data
-    if (isTemplateResponse(parsedData)) {
-      console.warn("AI returned a template response without proper customization");
+    if (isArray) {
+      // Handle array of API data
+      const objectMatch = cleanedText.match(/(\[[\s\S]*\])/);
+      if (objectMatch && objectMatch[1]) {
+        cleanedText = objectMatch[1];
+      }
       
-      // Return a basic error response
-      return {
-        id: parsedData.id || "",
-        step_name: "Error: Template Response",
-        action: "error_template_response",
-        inputs: {},
-        prerequisites: {},
-        api_config: { 
-          url: "", 
-          method: "GET",
-          passInputsAsQuery: false,
-          auth: {
-            type: "",
-            key: "",
-            paramName: ""
-          },
-          baseHeaders: {},
-          rateLimit: {
-            requestsPerMinute: null
-          }
-        },
-        response_schema: {
-          type: "object",
-          properties: {}
+      // Parse the JSON array
+      let parsedData: any;
+      try {
+        parsedData = JSON.parse(cleanedText);
+      } catch (e) {
+        console.error("Error parsing JSON array:", e);
+        // Try to fix common JSON array parsing issues
+        cleanedText = cleanFixBrokenJsonArray(cleanedText);
+        parsedData = JSON.parse(cleanedText);
+      }
+      
+      // Ensure the parsed data is an array
+      if (!Array.isArray(parsedData)) {
+        console.warn("Expected array but got:", typeof parsedData);
+        // If we got a single object, wrap it in an array
+        parsedData = [parsedData];
+      }
+      
+      // Validate and clean the array of actions
+      const validActions = validateAndCleanActions(parsedData);
+      
+      if (validActions.length === 0) {
+        throw new Error("No valid API actions found in the response");
+      }
+      
+      // Ensure each action has a unique ID
+      const uniqueIds = new Set<string>();
+      validActions.forEach(action => {
+        if (!action.id) {
+          // Generate a new ID if missing
+          action.id = `action_${uuidv4()}`;
+        } else if (uniqueIds.has(action.id)) {
+          // Replace duplicate ID
+          action.id = `action_${uuidv4()}`;
         }
-      };
+        uniqueIds.add(action.id);
+      });
+      
+      return validActions;
+    } else {
+      // Handle single API data object
+      // Remove any leading/trailing non-JSON text
+      const objectMatch = cleanedText.match(/(\{[\s\S]*\})/);
+      if (objectMatch && objectMatch[1]) {
+        cleanedText = objectMatch[1];
+      }
+      
+      // Parse the JSON object
+      let parsedData: any;
+      try {
+        parsedData = JSON.parse(cleanedText) as ProcessedApiData;
+      } catch (e) {
+        console.error("Error parsing JSON object:", e);
+        // Try to fix common JSON object parsing issues
+        cleanedText = cleanFixBrokenJsonObject(cleanedText);
+        parsedData = JSON.parse(cleanedText);
+      }
+      
+      // Validate the single action
+      if (isTemplateResponse(parsedData)) {
+        throw new Error("AI returned a template response without proper customization");
+      }
+      
+      if (!parsedData.id || !parsedData.step_name || !parsedData.action || !parsedData.api_config || !parsedData.api_config.url) {
+        throw new Error("AI returned an invalid action missing required fields");
+      }
+      
+      return parsedData;
     }
-    
-    return parsedData;
   } catch (error) {
-    console.error("Failed to parse AI response:", error);
-    console.error("Raw response:", responseText);
-    return {
-      id: "",
-      step_name: "Error",
-      action: "error",
-      inputs: {},
-      prerequisites: {},
-      api_config: { url: "", method: "" },
-      response_schema: {},
-    };
+    console.error("Error parsing AI response:", error);
+    throw new Error(`Failed to parse AI response: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+/**
+ * Attempts to fix common issues with broken JSON arrays
+ * @param jsonText The potentially broken JSON array text
+ * @returns Fixed JSON array text
+ */
+function cleanFixBrokenJsonArray(jsonText: string): string {
+  let text = jsonText.trim();
+  
+  // Ensure it starts with [ and ends with ]
+  if (!text.startsWith('[')) text = '[' + text;
+  if (!text.endsWith(']')) text = text + ']';
+  
+  // Fix missing commas between objects
+  text = text.replace(/}\s*{/g, '},{');
+  
+  // Fix trailing commas before closing bracket
+  text = text.replace(/,\s*]/g, ']');
+  
+  return text;
+}
+
+/**
+ * Attempts to fix common issues with broken JSON objects
+ * @param jsonText The potentially broken JSON object text
+ * @returns Fixed JSON object text
+ */
+function cleanFixBrokenJsonObject(jsonText: string): string {
+  let text = jsonText.trim();
+  
+  // Ensure it starts with { and ends with }
+  if (!text.startsWith('{')) text = '{' + text;
+  if (!text.endsWith('}')) text = text + '}';
+  
+  // Fix trailing commas
+  text = text.replace(/,\s*}/g, '}');
+  
+  return text;
+}
+
+/**
+ * Analyzes scraped content to determine if it likely contains multiple API endpoints
+ * @param content The scraped text content from the page
+ * @returns Boolean indicating if the page likely contains multiple API endpoints
+ */
+export function detectMultipleApiEndpoints(content: string): boolean {
+  // Count occurrences of common API endpoint indicators
+  const endpointIndicators = [
+    /\bGET\s+[\/\w]+/gi,
+    /\bPOST\s+[\/\w]+/gi,
+    /\bPUT\s+[\/\w]+/gi,
+    /\bDELETE\s+[\/\w]+/gi,
+    /\bPATCH\s+[\/\w]+/gi,
+    /\bAPI\s+Endpoint\b/gi,
+    /\bEndpoint\s*:/gi,
+    /\bURL\s*:/gi,
+    /\bRequest\s+URL\b/gi,
+    /\bHTTP\s+Method\b/gi
+  ];
+
+  // Count the number of potential API endpoint indicators
+  let endpointCount = 0;
+  for (const pattern of endpointIndicators) {
+    const matches = content.match(pattern);
+    if (matches) {
+      endpointCount += matches.length;
+    }
+  }
+
+  // Look for sections that might indicate multiple endpoints
+  const sectionIndicators = [
+    /\bEndpoints\b/gi,
+    /\bAPI\s+Reference\b/gi,
+    /\bAvailable\s+Methods\b/gi,
+    /\bResource\s+Types\b/gi,
+    /\bAPI\s+Resources\b/gi,
+    /\bList\s+of\s+APIs\b/gi,
+    /\bAPI\s+Listing\b/gi
+  ];
+
+  let hasSectionIndicators = false;
+  for (const pattern of sectionIndicators) {
+    if (pattern.test(content)) {
+      hasSectionIndicators = true;
+      break;
+    }
+  }
+
+  // Look for multiple HTTP method sections
+  const methodSections = [
+    content.match(/\bGET\b/gi)?.length || 0,
+    content.match(/\bPOST\b/gi)?.length || 0,
+    content.match(/\bPUT\b/gi)?.length || 0,
+    content.match(/\bDELETE\b/gi)?.length || 0,
+    content.match(/\bPATCH\b/gi)?.length || 0
+  ];
+  
+  // Count how many different HTTP methods are mentioned multiple times
+  const methodsWithMultipleOccurrences = methodSections.filter(count => count > 1).length;
+  
+  // Check for multiple URL patterns
+  const urlPatterns = content.match(/https?:\/\/[^\s"']+\/[^\s"']+/gi) || [];
+  const apiUrlPatterns = urlPatterns.filter(url => 
+    url.includes('/api/') || 
+    url.includes('/v1/') || 
+    url.includes('/v2/') || 
+    url.includes('/rest/')
+  );
+  
+  // Check for numbered sections that might indicate multiple endpoints
+  const numberedSections = content.match(/\b\d+\.\s+[A-Z][a-zA-Z\s]+API\b/gi) || [];
+  
+  // If we have multiple endpoint indicators or section indicators suggesting multiple endpoints
+  return (
+    endpointCount > 1 || 
+    hasSectionIndicators || 
+    methodsWithMultipleOccurrences >= 2 || 
+    apiUrlPatterns.length > 1 ||
+    numberedSections.length > 0
+  );
 }
