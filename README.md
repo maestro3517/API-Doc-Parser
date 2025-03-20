@@ -186,3 +186,66 @@ Content-Type: application/json
    ```
 
 4. Access the API at `http://localhost:3000/api/`
+
+# Workflow Creator
+
+A tool for automatically extracting API workflows from documentation.
+
+## API Processing Architecture
+
+The API processing system is organized into stages:
+
+### 1. Scraping the Root Page
+
+This stage handles two types of scraping:
+- Finding all API doc links on the root page
+- When no API links are found on the root page, going one level deep on subsections
+
+### 2. Processing the Scraped Data
+
+After scraping, we have a list of API doc URLs to process:
+- We use LLM (OpenAI or Gemini) to process each URL and extract API data
+- We first detect if the doc URL contains only 1 API or multiple APIs
+- For URLs with multiple APIs, we extract all APIs and return them in a structured format
+
+### 3. Linking Prerequisites
+
+After processing the data, we have a list of API data:
+- We use LLM to link prerequisites present in the API data with other API data from the entire list
+- When we find a relevant action for a prerequisite, we add that action to the API data
+- This creates a connected graph of API actions
+
+### 4. Final Result
+
+After linking the prerequisites, we have a final list of API data that is returned to the client.
+
+## Code Structure
+
+The code is organized into modules:
+
+```
+src/
+  utils/
+    api-processing/
+      index.ts                 # Main entry point
+      stages/
+        1-scraping.ts          # Stage 1: Scraping
+        2-processing.ts        # Stage 2: Processing
+        3-linking.ts           # Stage 3: Linking
+  pages/
+    api/
+      process-root-url.ts      # API endpoint
+```
+
+## Usage
+
+To process a root URL, make a POST request to the `/api/process-root-url` endpoint:
+
+```json
+{
+  "rootUrl": "https://example.com/api-docs",
+  "model": "openai"  // or "gemini"
+}
+```
+
+The response will contain the extracted API data with linked prerequisites.
