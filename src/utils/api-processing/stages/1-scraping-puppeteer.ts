@@ -53,6 +53,8 @@ export async function scrapeDataWithPuppeteer(url: string) {
     
     // Get text content
     const text = await page.evaluate(() => document.body.innerText);
+
+    console.log(text);
     
     return {
       text,

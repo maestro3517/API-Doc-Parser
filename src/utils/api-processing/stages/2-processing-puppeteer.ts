@@ -1,6 +1,13 @@
 import { v4 as uuidv4 } from "uuid";
 import { extractApiStructure, scrapeDataWithPuppeteer, isApiDocumentation } from "./1-scraping-puppeteer";
-import { ProcessedApiData, ApiResult, ApiSuccessResult, ApiErrorResult, ApiSkippedResult } from "./2-processing";
+import { 
+  ProcessedApiData, 
+  ApiResult, 
+  detectMultipleApiEndpoints, 
+  detectMultipleApisFromHtml, 
+  parseAiResponse,
+  sendToOpenAI 
+} from "./2-processing";
 
 /**
  * Converts the Puppeteer-extracted API data to the standard ProcessedApiData format
@@ -65,29 +72,13 @@ export function convertPuppeteerDataToStandardFormat(apiData: any): ProcessedApi
 /**
  * Processes a single API endpoint URL using Puppeteer
  * @param url The URL to process
+ * @param aiApiKey Optional API key for AI-based processing fallback
  * @returns The API result
  */
-export async function processApiEndpointWithPuppeteer(url: string): Promise<ApiResult> {
+export async function processApiEndpointWithPuppeteer(url: string, aiApiKey?: string): Promise<ApiResult> {
   try {
-    // First try to extract structured API information
-    const apiData = await extractApiStructure(url);
-    
-    // If we found structured API endpoints, convert them to our standard format
-    if (apiData && apiData.apiEndpoints && apiData.apiEndpoints.length > 0) {
-      const processedData = convertPuppeteerDataToStandardFormat(apiData);
-      
-      if (processedData.length > 0) {
-        return {
-          url,
-          status: "success",
-          result: processedData,
-          multipleApis: processedData.length > 1
-        };
-      }
-    }
-    
-    // If structured extraction failed, fall back to text-based analysis
-    const { text } = await scrapeDataWithPuppeteer(url);
+    // First scrape the page with Puppeteer
+    const { text, $ } = await scrapeDataWithPuppeteer(url);
     
     // Check if the URL contains API documentation
     if (!isApiDocumentation(text)) {
@@ -98,14 +89,61 @@ export async function processApiEndpointWithPuppeteer(url: string): Promise<ApiR
       };
     }
     
-    // If it is API documentation but we couldn't extract structured data,
-    // return an error suggesting to use the AI-based processor instead
+    // Detect if the page likely contains multiple API endpoints using both text and HTML analysis
+    const hasMultipleApisFromText = detectMultipleApiEndpoints(text);
+    const hasMultipleApisFromHtml = $ ? detectMultipleApisFromHtml($) : false;
+    const hasMultipleApis = hasMultipleApisFromText || hasMultipleApisFromHtml;
+    
+    console.log(`URL ${url} - Multiple APIs detected: ${hasMultipleApis} (text: ${hasMultipleApisFromText}, html: ${hasMultipleApisFromHtml})`);
+
+    // If AI API key is provided, use AI processing directly
+    if (aiApiKey) {
+      try {
+        console.log(`Using AI-based processing for ${url}`);
+        const aiResponse = await sendToOpenAI(text, aiApiKey, hasMultipleApis);
+        const parsedData = parseAiResponse(aiResponse);
+        
+        return {
+          url,
+          status: "success",
+          result: parsedData,
+          multipleApis: hasMultipleApis
+        };
+      } catch (aiError) {
+        console.error(`AI processing failed for ${url}:`, aiError);
+        return {
+          url,
+          status: "error",
+          error: "AI-based processing failed. " + (aiError instanceof Error ? aiError.message : String(aiError))
+        };
+      }
+    }
+    
+    // If no AI key, try to extract structured API information using Puppeteer
+    const apiData = await extractApiStructure(url);
+    
+    // If we found structured API endpoints, convert them to our standard format
+    if (apiData && apiData.apiEndpoints && apiData.apiEndpoints.length > 0) {
+      const processedData = convertPuppeteerDataToStandardFormat(apiData);
+      
+      if (processedData.length > 0) {
+        return {
+          url,
+          status: "success",
+          result: hasMultipleApis ? processedData : processedData[0],
+          multipleApis: hasMultipleApis
+        };
+      }
+    }
+    
+    // If Puppeteer extraction failed, return error suggesting to use AI-based processor
     return {
       url,
       status: "error",
       error: "Could not extract structured API data. Consider using the AI-based processor instead."
     };
   } catch (error) {
+    console.error(`Error processing ${url}:`, error);
     return {
       url,
       status: "error",
@@ -117,9 +155,10 @@ export async function processApiEndpointWithPuppeteer(url: string): Promise<ApiR
 /**
  * Main function for Puppeteer-based processing of API endpoints
  * @param apiEndpointUrls Array of API endpoint URLs
+ * @param aiApiKey Optional API key for AI-based processing fallback
  * @returns Array of API results
  */
-export async function processApiEndpointsWithPuppeteer(apiEndpointUrls: string[]): Promise<ApiResult[]> {
+export async function processApiEndpointsWithPuppeteer(apiEndpointUrls: string[], aiApiKey?: string): Promise<ApiResult[]> {
   // Process API endpoints in batches to avoid overwhelming the system
   const batchSize = 3; // Smaller batch size for Puppeteer to manage resources
   const results: ApiResult[] = [];
@@ -131,7 +170,7 @@ export async function processApiEndpointsWithPuppeteer(apiEndpointUrls: string[]
     // Process endpoints sequentially within each batch to avoid browser instance conflicts
     for (const url of batch) {
       console.log(`Processing ${url} with Puppeteer`);
-      const result = await processApiEndpointWithPuppeteer(url);
+      const result = await processApiEndpointWithPuppeteer(url, aiApiKey);
       results.push(result);
     }
   }
